@@ -81,6 +81,14 @@ td.l{text-align:left;font-weight:500;padding:6px 10px;white-space:nowrap}
 .th img{width:100%;height:100%;object-fit:cover;display:block}
 .th button{position:absolute;top:4px;right:4px;width:28px;height:28px;border-radius:50%;border:0;background:rgba(0,0,0,.6);color:#fff;font-size:17px;cursor:pointer}
 .up{display:inline-flex;align-items:center}
+.th video{width:100%;height:100%;object-fit:cover;display:block;background:#000}
+.cam{position:fixed;inset:0;z-index:50;background:rgba(10,4,24,.92);display:flex;align-items:center;justify-content:center;padding:16px}
+.cam[hidden]{display:none}
+.cambox{width:min(560px,100%);display:flex;flex-direction:column;gap:12px}
+.cambox video{width:100%;max-height:70vh;border-radius:14px;background:#000;object-fit:contain}
+.camctl{justify-content:center}
+.cam .btn{color:#fff;border-color:#8f7ac9}.cam .btn.a{border-color:var(--acc)}
+#camrec{color:#ff6b6b;font-weight:600;text-align:center;min-height:1.5em}
 .err .thumbs+.row .btn{border-color:var(--err)}
 .mini{width:56px;height:56px;border-radius:8px;object-fit:cover;float:left;margin:4px 12px 4px 0}
 .pr::after{content:"";display:block;clear:both}
@@ -136,12 +144,19 @@ td.l{text-align:left;font-weight:500;padding:6px 10px;white-space:nowrap}
         <div><div class="num" id="nE">0</div><span class="hint">fotos</span></div>
       </div>
       <div class="rev" id="rev"></div>
-      <div class="ok"><b>Como enviar:</b> toque em <b>Baixar planilha</b> e mande o arquivo pra gente (as fotos já vão dentro dele).</div>
+      <div class="ok"><b>Como enviar:</b> toque em <b>Baixar planilha</b> e mande o arquivo pra gente (as fotos já vão dentro dele). Se você colocou vídeos, eles são baixados junto, um arquivo para cada — mande todos.</div>
       <div class="row" style="margin-top:16px"><button class="btn a" id="dl">Baixar planilha</button><button class="btn g" id="novo">Começar um cadastro novo</button></div>
       <p class="hint" id="out" aria-live="polite"></p>
     </div>
   </section>
 </div></main>
+
+<div class="cam" id="cam" hidden role="dialog" aria-label="Câmera"><div class="cambox">
+  <video id="camv" playsinline muted autoplay></video>
+  <div id="camrec" aria-live="polite"></div>
+  <div class="row camctl"><button type="button" class="btn" id="camx">Cancelar</button><button type="button" class="btn" id="camflip">Trocar câmera</button><button type="button" class="btn a" id="camgo">Capturar</button></div>
+</div></div>
+<input type="file" accept="image/*" capture="environment" id="fbfoto" hidden><input type="file" accept="video/*" capture="environment" id="fbvid" hidden>
 
 <div class="bar"><div class="wrap">
   <button class="btn g" id="back">Voltar</button>
@@ -174,6 +189,51 @@ const temDados = () => st.loja.marca || st.prods.some(p => p.nome || p.fotos.len
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") { clearTimeout(tSave); gravar(); } });
 window.addEventListener("beforeunload", e => { clearTimeout(tSave); gravar(); if (temDados() && !baixou) { e.preventDefault(); e.returnValue = ""; } });
 let baixou = false;
+const vids = {}, vurl = {};
+const urlVid = p => vurl[p.id] ||= URL.createObjectURL(vids[p.id]);
+const extVid = t => /mp4/.test(t) ? "mp4" : /quicktime/.test(t) ? "mov" : /webm/.test(t) ? "webm" : "mp4";
+const slug = v => String(v||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
+const nomeVid = (p, i) => `${slug(st.loja.marca)||"loja"}-${i+1}-${slug(p.nome)||"produto"}-video.${extVid(p.video.type)}`;
+async function setVid(i, blob) {
+  const p = st.prods[i]; if (!p) return;
+  if (blob.size > 300*1048576) { aviso("Vídeo muito grande (máx. 300 MB)"); return; }
+  vids[p.id] = blob; delete vurl[p.id]; p.video = {type: blob.type || "video/mp4", size: blob.size};
+  try { await idb.set("vid:"+p.id, blob); } catch(e) {}
+  redrawOne(i); save();
+}
+const tirarVid = p => { if (!p.video) return; delete vids[p.id]; if (vurl[p.id]) URL.revokeObjectURL(vurl[p.id]); delete vurl[p.id]; idb.del("vid:"+p.id).catch(()=>{}); p.video = null; };
+/* câmera dentro da página */
+let cam = {stream:null, mode:"foto", i:0, facing:"environment", rec:null, chunks:[], tm:null};
+async function abrirCam(mode, i) {
+  cam.mode = mode; cam.i = i;
+  if (!navigator.mediaDevices?.getUserMedia) { $(mode === "foto" ? "#fbfoto" : "#fbvid").dataset.i = i; $(mode === "foto" ? "#fbfoto" : "#fbvid").click(); return; }
+  try {
+    cam.stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:cam.facing, width:{ideal:1280}, height:{ideal:1280}}, audio:false});
+    $("#camv").srcObject = cam.stream; $("#cam").hidden = false; $("#camrec").textContent = mode === "foto" ? "" : "Toque em Gravar para começar";
+    $("#camgo").textContent = mode === "foto" ? "Capturar" : "Gravar";
+  } catch(e) { fecharCam(); const f = $(mode === "foto" ? "#fbfoto" : "#fbvid"); f.dataset.i = i; f.click(); }
+}
+function fecharCam() { clearInterval(cam.tm); if (cam.rec && cam.rec.state !== "inactive") { cam.rec.onstop = null; cam.rec.stop(); } cam.rec = null; cam.stream?.getTracks().forEach(t=>t.stop()); cam.stream = null; $("#cam").hidden = true; }
+$("#camx").onclick = fecharCam;
+$("#camflip").onclick = async () => { if (cam.rec) return; cam.facing = cam.facing === "environment" ? "user" : "environment"; cam.stream?.getTracks().forEach(t=>t.stop()); await abrirCam(cam.mode, cam.i); };
+$("#camgo").onclick = () => {
+  const v = $("#camv");
+  if (cam.mode === "foto") {
+    const k = Math.min(1, 900 / Math.max(v.videoWidth, v.videoHeight)), cv = document.createElement("canvas"); cv.width = Math.round(v.videoWidth*k); cv.height = Math.round(v.videoHeight*k);
+    cv.getContext("2d").drawImage(v, 0, 0, cv.width, cv.height); const p = st.prods[cam.i];
+    if (p && cv.width) { p.fotos.push(cv.toDataURL("image/jpeg", 0.72)); fecharCam(); redrawOne(cam.i); save(); }
+    return;
+  }
+  if (cam.rec) { cam.rec.stop(); return; }
+  const tipo = ["video/mp4","video/webm;codecs=vp9","video/webm"].find(t => window.MediaRecorder?.isTypeSupported?.(t)) || "";
+  try { cam.rec = new MediaRecorder(cam.stream, tipo ? {mimeType:tipo, videoBitsPerSecond:2500000} : {}); } catch(e) { fecharCam(); $("#fbvid").dataset.i = cam.i; $("#fbvid").click(); return; }
+  cam.chunks = []; cam.rec.ondataavailable = e => e.data.size && cam.chunks.push(e.data);
+  cam.rec.onstop = () => { const blob = new Blob(cam.chunks, {type: (cam.rec.mimeType||tipo||"video/webm").split(";")[0]}); const i = cam.i; fecharCam(); setVid(i, blob); };
+  cam.rec.start(500); const t0 = Date.now(); $("#camgo").textContent = "Parar";
+  cam.tm = setInterval(() => { const s = Math.floor((Date.now()-t0)/1000); $("#camrec").textContent = `● Gravando 0:${String(s).padStart(2,"0")} (máx. 1:00)`; if (s >= 60) cam.rec?.stop(); }, 250);
+};
+$("#fbfoto").onchange = async e => { const i = +e.target.dataset.i, p = st.prods[i]; for (const f of [...e.target.files].slice(0, 4 - p.fotos.length)) { try { p.fotos.push(await reduzir(f)); } catch(err) {} } e.target.value = ""; redrawOne(i); save(); };
+$("#fbvid").onchange = e => { const f = e.target.files[0]; if (f) setVid(+e.target.dataset.i, f); e.target.value = ""; };
 const reduzir = file => new Promise((ok, no) => { const r = new FileReader(); r.onerror = no; r.onload = () => { const im = new Image(); im.onerror = no; im.onload = () => {
   const k = Math.min(1, 900 / Math.max(im.width, im.height)), cv = document.createElement("canvas"); cv.width = Math.round(im.width*k); cv.height = Math.round(im.height*k);
   cv.getContext("2d").drawImage(im, 0, 0, cv.width, cv.height); ok(cv.toDataURL("image/jpeg", 0.72)); }; im.src = r.result; }; r.readAsDataURL(file); });
@@ -194,8 +254,8 @@ function grade(p) {
 }
 function medidas(p) {
   if (!p.tams.length) return `<p class="hint">Marque os tamanhos para preencher as medidas.</p>`;
-  return `<div class="scroll"><table><tr><th>Tamanho</th><th>Busto (cm)</th><th>Cintura (cm)</th><th>Quadril (cm)</th></tr>
-  ${p.tams.map(z=>`<tr><td class="l">${esc(z)}</td>${["busto","cintura","quadril"].map(m=>`<td><input inputmode="decimal" data-m2="${esc(z+"|"+m)}" value="${esc((p.med[z]||{})[m])}" placeholder="–"></td>`).join("")}</tr>`).join("")}</table></div>`;
+  return `<div class="scroll"><table><tr><th>Tamanho</th><th>Busto</th><th>Cintura</th><th>Quadril</th><th>Altura da calcinha</th><th>Lateral</th></tr>
+  ${p.tams.map(z=>`<tr><td class="l">${esc(z)}</td>${["busto","cintura","quadril","alturaCalcinha","lateral"].map(m=>`<td><input inputmode="decimal" data-m2="${esc(z+"|"+m)}" value="${esc((p.med[z]||{})[m])}" placeholder="–"></td>`).join("")}</tr>`).join("")}</table></div>`;
 }
 function card(p, i) {
   const allT = [...new Set([...TAMS.flat(), ...p.tams])];
@@ -207,8 +267,12 @@ function card(p, i) {
     <div class="full" data-w="fotos"><span class="f" style="font-weight:600">Foto da peça <span class="req">*</span></span>
       <p class="hint">Só pra gente identificar qual é o produto — pode ser foto simples, de celular. As fotos dos anúncios são feitas por nós.</p>
       <div class="thumbs">${p.fotos.map((f,k)=>`<span class="th"><img src="${esc(f)}" alt="Foto ${k+1}"><button type="button" data-rf="${k}" aria-label="Remover foto">×</button></span>`).join("")}</div>
-      ${p.fotos.length < 4 ? `<div class="row" style="margin-top:8px"><label class="btn p up">Tirar foto<input type="file" accept="image/*" capture="environment" data-foto hidden></label><label class="btn up">Escolher da galeria<input type="file" accept="image/*" multiple data-foto hidden></label></div>` : `<p class="hint">Limite de 4 fotos por produto.</p>`}
+      ${p.fotos.length < 4 ? `<div class="row" style="margin-top:8px"><button type="button" class="btn p" data-cam="foto">Tirar foto</button><label class="btn up">Escolher da galeria<input type="file" accept="image/*" multiple data-foto hidden></label></div>` : `<p class="hint">Limite de 4 fotos por produto.</p>`}
       <span class="msg">Adicione pelo menos uma foto da peça</span></div>
+    <div class="full"><span class="f" style="font-weight:600">Vídeo da peça <small style="font-weight:400;color:var(--mut)">(opcional — até 1 minuto)</small></span>
+      <p class="hint">Mostrando a peça de perto, o caimento ou o tecido, se quiser.</p>
+      ${p.video ? `<div class="thumbs"><span class="th vd">${vids[p.id] ? `<video src="${esc(urlVid(p))}#t=0.1" muted playsinline preload="metadata"></video>` : `<span class="hint" style="padding:8px">carregando…</span>`}<button type="button" data-act="rv" aria-label="Remover vídeo">×</button></span><span class="hint" style="align-self:center">${esc((p.video.size/1048576).toFixed(1))} MB</span></div>`
+        : `<div class="row" style="margin-top:8px"><button type="button" class="btn p" data-cam="video">Gravar vídeo</button><label class="btn up">Escolher vídeo<input type="file" accept="video/*" data-vid hidden></label></div>`}</div>
     <div class="full">${field("sku","Código / referência",'placeholder="Ex.: CJ-BELLA"',"(se tiver)")}</div>
     <div class="full"><label class="f">Tecido / composição <small>(está na etiqueta)</small><input data-f="comp" placeholder="Ex.: 90% poliamida, 10% elastano"></label></div>
     <div class="full"><label class="f">Descrição / diferenciais <small>(com suas palavras)</small><textarea data-f="desc" placeholder="O que essa peça tem de especial? Ex.: renda macia que não pinica, bojo leve que levanta sem marcar…"></textarea></label></div>
@@ -224,7 +288,7 @@ function card(p, i) {
         <span class="msg">Marque pelo menos um tamanho</span></div>
     </div>
     <h3 style="margin-top:18px">Como está o estoque? <small class="hint">(opcional)</small></h3><div data-grade>${grade(p)}</div>
-    <h3 style="margin-top:18px">Tabela de medidas <small class="hint">(opcional, mas reduz muito as devoluções)</small></h3><div data-med>${medidas(p)}</div>
+    <h3 style="margin-top:18px">Tabela de medidas <small class="hint">(em cm — opcional, mas reduz muito as devoluções)</small></h3><div data-med>${medidas(p)}</div>
   </div>
   <div class="sub"><h3>Custo</h3>
     <div class="grid">
@@ -245,6 +309,7 @@ $("#prods").addEventListener("input", e => {
   else return; save();
 });
 $("#prods").addEventListener("change", async e => {
+  if (e.target.matches("[data-vid]")) { const [,,i] = P(e.target); const f = e.target.files[0]; if (f) setVid(i, f); return; }
   if (e.target.matches("[data-foto]")) { const [p,,i] = P(e.target); for (const f of [...e.target.files].slice(0, 4 - p.fotos.length)) { try { p.fotos.push(await reduzir(f)); } catch(err) {} } redrawOne(i); save(); return; }
 });
 $("#prods").addEventListener("keydown", e => {
@@ -254,14 +319,16 @@ $("#prods").addEventListener("keydown", e => {
 $("#prods").addEventListener("focusout", e => { if (e.target.matches("[data-newcor]") && e.target.value.trim()) { const [p,,i] = P(e.target); const v = e.target.value; setTimeout(()=>addCor(p, i, v, false), 0); } });
 $("#prods").addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b) return; const [p, c, i] = P(b); if (!p) return; const d = b.dataset;
-  if (d.e) { const v = p.est[d.e] || "", n = NIV[(NIV.indexOf(v)+1) % NIV.length]; p.est[d.e] = n; b.textContent = n; b.className = "lv " + CL[n]; }
+  if (d.cam) { abrirCam(d.cam, i); return; }
+  else if (d.act === "rv") { tirarVid(p); redrawOne(i); }
+  else if (d.e) { const v = p.est[d.e] || "", n = NIV[(NIV.indexOf(v)+1) % NIV.length]; p.est[d.e] = n; b.textContent = n; b.className = "lv " + CL[n]; }
   else if (d.fillv) { p.cores.forEach(co=>p.tams.forEach(z=>p.est[co+"|"+z]=d.fillv)); c.querySelector("[data-grade]").innerHTML = grade(p); }
   else if (d.t) { p.tams.includes(d.t) ? p.tams.splice(p.tams.indexOf(d.t),1) : p.tams.push(d.t); const ord = [...new Set([...TAMS.flat()])]; p.tams.sort((x,y)=>(ord.indexOf(x)+1||99)-(ord.indexOf(y)+1||99)); redrawOne(i); }
   else if (d.rf !== undefined) { p.fotos.splice(+d.rf,1); redrawOne(i); }
   else if (d.rc !== undefined) { p.cores.splice(+d.rc,1); redrawOne(i); }
   else if (d.act === "tam") { const v = c.querySelector("[data-newtam]").value.trim(); if (v && !p.tams.includes(v)) { p.tams.push(v); redrawOne(i); } }
-  else if (d.act === "dup") { const n = JSON.parse(JSON.stringify(p)); n.id = Date.now(); n.nome = p.nome ? p.nome + " (cópia)" : ""; n.sku = ""; n.fotos = []; st.prods.splice(i+1,0,n); drawProds(); document.querySelector(`.prod[data-i="${i+1}"]`).scrollIntoView({behavior:"smooth"}); }
-  else if (d.act === "del") { if (b.dataset.sure) { st.prods.splice(i,1); drawProds(); } else { b.dataset.sure = 1; b.textContent = "Toque de novo p/ remover"; setTimeout(()=>{ if (b.isConnected) { delete b.dataset.sure; b.textContent = "Remover"; } }, 3000); return; } }
+  else if (d.act === "dup") { const n = JSON.parse(JSON.stringify(p)); n.id = Date.now(); n.nome = p.nome ? p.nome + " (cópia)" : ""; n.sku = ""; n.fotos = []; n.video = null; st.prods.splice(i+1,0,n); drawProds(); document.querySelector(`.prod[data-i="${i+1}"]`).scrollIntoView({behavior:"smooth"}); }
+  else if (d.act === "del") { if (b.dataset.sure) { tirarVid(p); st.prods.splice(i,1); drawProds(); } else { b.dataset.sure = 1; b.textContent = "Toque de novo p/ remover"; setTimeout(()=>{ if (b.isConnected) { delete b.dataset.sure; b.textContent = "Remover"; } }, 3000); return; } }
   else return; save();
 });
 $("#add").onclick = () => { st.prods.push(novo()); drawProds(); save(); document.querySelector(`.prod[data-i="${st.prods.length-1}"]`).scrollIntoView({behavior:"smooth"}); };
@@ -305,23 +372,23 @@ function revisar() {
   $("#rev").innerHTML = `<p style="margin-top:16px"><b>${esc(st.loja.marca)}</b></p>` + st.prods.map((p,i)=>{
     const semEst = p.cores.length*p.tams.length - p.cores.filter(c=>1).reduce((s,c)=>s+p.tams.filter(z=>p.est[c+"|"+z]).length,0);
     const semMed = p.tams.filter(z=>!Object.values(p.med[z]||{}).some(v=>String(v).trim()));
-    return `<div class="pr">${p.fotos[0]?`<img class="mini" src="${esc(p.fotos[0])}" alt="">`:""}<p><b>${i+1}. ${esc(p.nome)}</b>${p.sku?` · ${esc(p.sku)}`:""} · custo R$ ${esc(p.custo)}</p><p class="hint">${esc(p.cores.join(", "))} — ${esc(p.tams.join(", "))}</p>${semMed.length?`<p class="hint" style="color:var(--acc)">Sem medidas: ${esc(semMed.join(", "))}</p>`:""}${semEst?`<p class="hint" style="color:var(--acc)">${semEst} variação(ões) sem estoque marcado</p>`:""}</div>`; }).join("");
+    return `<div class="pr">${p.fotos[0]?`<img class="mini" src="${esc(p.fotos[0])}" alt="">`:""}<p><b>${i+1}. ${esc(p.nome)}</b>${p.sku?` · ${esc(p.sku)}`:""}${p.video?" · com vídeo":""} · custo R$ ${esc(p.custo)}</p><p class="hint">${esc(p.cores.join(", "))} — ${esc(p.tams.join(", "))}</p>${semMed.length?`<p class="hint" style="color:var(--acc)">Sem medidas: ${esc(semMed.join(", "))}</p>`:""}${semEst?`<p class="hint" style="color:var(--acc)">${semEst} variação(ões) sem estoque marcado</p>`:""}</div>`; }).join("");
 
 
 }
-const COLS = [["Produto",34],["Código",14],["SKU variação",24],["Cor",14],["Tamanho",10],["Estoque",10],["Busto (cm)",11],["Cintura (cm)",12],["Quadril (cm)",12],["Custo",10],["Composição",26],["Descrição / diferenciais",44],["Observações",30]];
-const varRow = ({p,c,z}) => { const m = p.med[z] || {}; return [p.nome,p.sku,skuVar(p,c,z),c,z,p.est[c+"|"+z]||"",m.busto,m.cintura,m.quadril,p.custo,p.comp,p.desc,p.obs]; };
+const COLS = [["Produto",34],["Código",14],["SKU variação",24],["Cor",14],["Tamanho",10],["Estoque",10],["Busto (cm)",11],["Cintura (cm)",12],["Quadril (cm)",12],["Altura calcinha (cm)",18],["Lateral (cm)",12],["Custo",10],["Composição",26],["Descrição / diferenciais",44],["Observações",30]];
+const varRow = ({p,c,z}) => { const m = p.med[z] || {}; return [p.nome,p.sku,skuVar(p,c,z),c,z,p.est[c+"|"+z]||"",m.busto,m.cintura,m.quadril,m.alturaCalcinha,m.lateral,p.custo,p.comp,p.desc,p.obs]; };
 function csv() { const q = v => `"${String(v ?? "").replace(/"/g,'""')}"`; return "﻿" + [COLS.map(c=>c[0]), ...linhas().map(varRow)].map(r => r.map(q).join(";")).join("\r\n"); }
 async function xlsx() {
   const L = st.loja, wb = new ExcelJS.Workbook(), roxo = "FF381394";
   const head = ws => { const r = ws.getRow(1); r.font = {bold:true,color:{argb:"FFFFFFFF"}}; r.fill = {type:"pattern",pattern:"solid",fgColor:{argb:roxo}}; r.height = 22; ws.views = [{state:"frozen",ySplit:1}]; };
   const nF = Math.max(1, ...st.prods.map(p=>p.fotos.length));
   const ws = wb.addWorksheet("Produtos");
-  ws.columns = [...Array.from({length:nF},(_,k)=>({header:`Foto ${k+1}`,width:18})), {header:"Produto",width:34},{header:"Código",width:14},{header:"Cores",width:26},{header:"Tamanhos",width:20},{header:"Custo",width:10},{header:"Composição",width:26},{header:"Descrição / diferenciais",width:44},{header:"Tabela de medidas (busto / cintura / quadril)",width:36},{header:"Observações",width:30}];
+  ws.columns = [...Array.from({length:nF},(_,k)=>({header:`Foto ${k+1}`,width:18})), {header:"Produto",width:34},{header:"Código",width:14},{header:"Cores",width:26},{header:"Tamanhos",width:20},{header:"Custo",width:10},{header:"Composição",width:26},{header:"Descrição / diferenciais",width:44},{header:"Tabela de medidas (busto / cintura / quadril / alt. calcinha / lateral)",width:44},{header:"Vídeo",width:30},{header:"Observações",width:30}];
   head(ws);
   st.prods.forEach((p, i) => {
-    const med = p.tams.map(z=>{ const m = p.med[z]||{}; return `${z}: ${m.busto||"–"} / ${m.cintura||"–"} / ${m.quadril||"–"}`; }).join("\n");
-    const r = ws.addRow([...Array(nF).fill(""), p.nome,p.sku,p.cores.join(", "),p.tams.join(", "),p.custo,p.comp,p.desc,med,p.obs]);
+    const med = p.tams.map(z=>{ const m = p.med[z]||{}; return `${z}: ${["busto","cintura","quadril","alturaCalcinha","lateral"].map(k=>m[k]||"–").join(" / ")}`; }).join("\n");
+    const r = ws.addRow([...Array(nF).fill(""), p.nome,p.sku,p.cores.join(", "),p.tams.join(", "),p.custo,p.comp,p.desc,med,p.video?nomeVid(p,i):"",p.obs]);
     r.height = 100; r.alignment = {vertical:"middle",wrapText:true};
     p.fotos.forEach((f, k) => { const id = wb.addImage({base64:f, extension:"jpeg"}); ws.addImage(id, {tl:{col:k+0.05,row:i+1+0.05}, ext:{width:120,height:126}}); });
   });
@@ -342,20 +409,23 @@ async function baixar(name, data) {
 $("#dl").onclick = async () => {
   const out = $("#out"), b = $("#dl"); b.disabled = true; out.textContent = "Gerando a planilha com as fotos…";
   try {
-    if (window.ExcelJS) { await baixar(nomeArq("xlsx"), await xlsx()); baixou = true; out.textContent = "Planilha baixada (com as fotos). Agora é só mandar o arquivo pra gente."; }
+    if (window.ExcelJS) { await baixar(nomeArq("xlsx"), await xlsx()); baixou = true;
+      const comVid = st.prods.map((p,i)=>[p,i]).filter(([p])=>p.video && vids[p.id]);
+      for (const [k,[p,i]] of comVid.entries()) { out.textContent = `Baixando vídeo ${k+1} de ${comVid.length}…`; await new Promise(r=>setTimeout(r,700)); await baixar(nomeVid(p,i), vids[p.id]); }
+      out.textContent = comVid.length ? `Pronto! Foram baixados ${comVid.length+1} arquivos: a planilha (com as fotos) e ${comVid.length} vídeo(s). Mande todos pra gente.` : "Planilha baixada (com as fotos). Agora é só mandar o arquivo pra gente."; }
     else { await baixar(nomeArq("csv"), csv()); out.textContent = "Planilha baixada, mas sem as fotos (sem internet para gerar o Excel). Mande as fotos junto com o arquivo."; }
   } catch(e) { out.textContent = e && e.code === "declined" ? "Download cancelado." : "Não consegui baixar aqui — tente em outro navegador."; }
   b.disabled = false;
 };
 
 
-const zerar = async () => { st = {loja:{marca:""},prods:[novo()]}; baixou = false; try { await idb.del(KEY); } catch(e) {} try { localStorage.removeItem(KEY); } catch(e) {} fillLoja(); drawProds(); $("#rec").style.display = "none"; show(0); };
+const zerar = async () => { st.prods.forEach(tirarVid); st = {loja:{marca:""},prods:[novo()]}; baixou = false; try { await idb.del(KEY); } catch(e) {} try { localStorage.removeItem(KEY); } catch(e) {} fillLoja(); drawProds(); $("#rec").style.display = "none"; show(0); };
 const confirma = (b, txt, fn) => { if (b.dataset.sure) { fn(); return; } const o = b.textContent; b.dataset.sure = 1; b.textContent = txt; setTimeout(()=>{ delete b.dataset.sure; b.textContent = o; }, 3000); };
 $("#zero").onclick = e => confirma(e.target, "Toque de novo para apagar tudo", zerar);
 $("#novo").onclick = e => confirma(e.target, "Toque de novo: apaga este cadastro", zerar);
 fillLoja(); drawProds(); show(0);
 if (temDados()) $("#rec").style.display = "block";
-idb.get(KEY).then(s => { if (s && s.prods) { st = s; st.prods.forEach(p => { p.fotos ||= []; p.est ||= {}; }); fillLoja(); drawProds(); if (temDados()) $("#rec").style.display = "block"; } }).catch(()=>{});
+idb.get(KEY).then(async s => { if (s && s.prods) { st = s; st.prods.forEach(p => { p.fotos ||= []; p.est ||= {}; }); fillLoja(); drawProds(); for (const [i,p] of st.prods.entries()) if (p.video) { try { const b = await idb.get("vid:"+p.id); if (b) { vids[p.id] = b; redrawOne(i); } else { p.video = null; redrawOne(i); } } catch(e) {} } if (temDados()) $("#rec").style.display = "block"; } }).catch(()=>{});
 }
 </script>
 </body>
