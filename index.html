@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cadastro de produtos</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js" defer></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* VOICE: calmo, guiado, sem jargão — uma cliente preenchendo pelo celular
+   IDEA: ficha técnica de produto que a agência recebe pronta para cadastrar
+   PICTURE: o próprio formulário, com a grade cor × tamanho como peça central
+   COLOUR and TYPE: roxo KAWLIN #381394, laranja #FD5D00 de destaque; Inter Tight + Inter
+   LAYOUT: faixa roxa com etapas, uma coluna calma de até 760px */
+:root{color-scheme:light dark;
+--bg:light-dark(#f6f4f9,#120a22);--card:light-dark(#fff,#1d1233);--ink:light-dark(#1b1030,#f1edf8);
+--mut:light-dark(#655c78,#b3a9c7);--line:light-dark(#e3ddec,#33264d);--pri:#381394;--pri2:light-dark(#381394,#a057ff);
+--acc:#FD5D00;--soft:light-dark(#efe9fb,#2a1b48);--err:light-dark(#c0262d,#ff8a8f)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 Inter,system-ui,sans-serif;overflow-x:clip}
+h1,h2,h3{font-family:"Inter Tight",Inter,sans-serif;line-height:1.1;text-wrap:balance;margin:0}
+.top{background:var(--pri);color:#fff;padding:28px max(5vw,16px) 22px}
+.wrap{max-width:760px;margin:0 auto}
+.top h1{font-size:clamp(28px,5vw,40px)}
+.top p{margin:8px 0 18px;color:#ddd3f5;max-width:60ch}
+.dot{color:var(--acc)}
+.steps{display:flex;gap:8px;flex-wrap:wrap}
+.steps button{flex:1 1 140px;min-height:44px;border:1px solid #6a4bc0;background:transparent;color:#d9cff3;border-radius:10px;font:500 14px Inter,sans-serif;cursor:pointer;text-align:left;padding:8px 12px}
+.steps button b{display:block;font-size:12px;font-weight:500;color:#b5a6e3}
+.steps button.on{background:#fff;color:var(--pri);border-color:#fff}
+.steps button.on b{color:var(--acc)}
+main{padding:24px max(5vw,16px) 120px}
+.sec{display:none}.sec.on{display:block}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:clamp(16px,3vw,26px);margin-bottom:18px}
+.card h2{font-size:22px;margin-bottom:4px}
+.hint{color:var(--mut);font-size:14px;margin:2px 0 0}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 16px;margin-top:16px}
+.full{grid-column:1/-1}
+label.f{display:block;font-weight:600;font-size:15px}
+label.f small{font-weight:400;color:var(--mut)}
+.req{color:var(--acc)}
+input,select,textarea{width:100%;font:16px Inter,sans-serif;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:6px;min-height:44px}
+textarea{min-height:84px;resize:vertical}
+input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid var(--pri2);outline-offset:1px}
+.err input,.err select,.err textarea,.err .tags{border-color:var(--err)}
+.err>.msg{display:block}
+.msg{display:none;color:var(--err);font-size:13px;margin-top:4px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.chip{min-height:40px;padding:6px 14px;border-radius:999px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:500 14px Inter,sans-serif;cursor:pointer}
+.chip.on{background:var(--pri);border-color:var(--pri);color:#fff}
+.tags{display:flex;flex-wrap:wrap;gap:6px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:6px;margin-top:6px;background:var(--bg)}
+.tags input{border:0;margin:0;flex:1 1 140px;min-height:36px;background:transparent}
+.tag{background:var(--soft);border-radius:8px;padding:4px 6px 4px 10px;font-size:14px;display:inline-flex;align-items:center;gap:4px}
+.tag button{border:0;background:none;color:var(--mut);font-size:18px;cursor:pointer;width:28px;height:28px}
+.ptitle{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}
+.pnum{display:inline-block;background:var(--acc);color:#fff;border-radius:8px;padding:2px 9px;font:600 13px Inter;margin-right:8px;vertical-align:2px}
+.sub{margin-top:22px;padding-top:18px;border-top:1px dashed var(--line)}
+.sub h3{font-size:17px}
+.scroll{overflow-x:auto;margin-top:10px}
+table{border-collapse:collapse;font-size:14px}
+th,td{border:1px solid var(--line);padding:4px;text-align:center}
+th{background:var(--soft);font-weight:600;padding:8px 10px;white-space:nowrap}
+td input{margin:0;min-height:38px;width:76px;text-align:right;padding:6px 8px}
+td.l{text-align:left;font-weight:500;padding:6px 10px;white-space:nowrap}
+.btn{min-height:44px;padding:10px 18px;border-radius:10px;border:1px solid var(--pri2);background:transparent;color:var(--pri2);font:600 15px Inter,sans-serif;cursor:pointer}
+.btn.p{background:var(--pri);border-color:var(--pri);color:#fff}
+.btn.a{background:var(--acc);border-color:var(--acc);color:#fff}
+.btn.g{border-color:var(--line);color:var(--mut)}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.bar{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);padding:12px max(5vw,16px)}
+.bar .wrap{display:flex;justify-content:space-between;gap:10px;align-items:center}
+#saved{font-size:13px;color:var(--mut)}
+.alert{background:light-dark(#fff1f1,#3a1420);border:1px solid var(--err);color:var(--err);border-radius:10px;padding:10px 14px;margin-bottom:16px;display:none}
+.rev{font-size:15px}.rev p{margin:4px 0}
+.rev .pr{padding:12px 0;border-top:1px solid var(--line)}
+.ok{background:var(--soft);border-radius:12px;padding:14px 16px;margin-top:14px;font-size:15px}
+.thumbs{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px}
+.th{position:relative;width:96px;height:96px;border-radius:10px;overflow:hidden;border:1px solid var(--line)}
+.th img{width:100%;height:100%;object-fit:cover;display:block}
+.th button{position:absolute;top:4px;right:4px;width:28px;height:28px;border-radius:50%;border:0;background:rgba(0,0,0,.6);color:#fff;font-size:17px;cursor:pointer}
+.up{display:inline-flex;align-items:center}
+.err .thumbs+.row .btn{border-color:var(--err)}
+.mini{width:56px;height:56px;border-radius:8px;object-fit:cover;float:left;margin:4px 12px 4px 0}
+.pr::after{content:"";display:block;clear:both}
+.lv{min-width:68px;min-height:38px;border-radius:8px;border:1px dashed var(--line);background:var(--bg);color:var(--mut);font:600 13px Inter,sans-serif;cursor:pointer;padding:4px 8px}
+.lv.b{background:light-dark(#d8f3e2,#173d28);color:light-dark(#166534,#86efac);border:1px solid transparent}
+.lv.m{background:light-dark(#fdf0c8,#3d3210);color:light-dark(#8a5a00,#fcd34d);border:1px solid transparent}
+.lv.r{background:light-dark(#fde0e0,#451a1d);color:light-dark(#b42318,#fca5a5);border:1px solid transparent}
+.num{font-family:"Inter Tight";font-size:34px;color:var(--pri2)}
+@media(max-width:600px){.grid{grid-template-columns:minmax(0,1fr)}.steps button{flex-basis:30%;font-size:13px;padding:6px 8px}}
+@media(prefers-reduced-motion:no-preference){.sec.on{animation:in .25s ease}@keyframes in{from{opacity:0;transform:translateY(6px)}}}
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <h1>Cadastro de produtos<span class="dot">.</span></h1>
+  <p>Preencha com calma — tudo fica salvo neste aparelho, então se fechar sem querer é só abrir o link de novo que continua de onde parou. No final, você baixa a planilha (já com as fotos) e envia pra gente.</p>
+  <nav class="steps" id="steps">
+    <button data-s="0" class="on"><b>Etapa 1</b>Sua loja</button>
+    <button data-s="1"><b>Etapa 2</b>Produtos</button>
+    <button data-s="2"><b>Etapa 3</b>Revisar e enviar</button>
+  </nav>
+</div></header>
+
+<main><div class="wrap">
+  <div class="alert" id="alert"></div>
+  <div class="ok" id="rec" style="display:none;margin:0 0 16px">Recuperamos o que você já tinha preenchido — é só continuar de onde parou. <button class="btn g" id="zero" style="margin-left:6px;min-height:36px;padding:4px 12px">Começar do zero</button></div>
+
+  <section class="sec on" id="s0">
+    <div class="card">
+      <h2>Qual é a sua loja?</h2>
+      <p class="hint">Só pra gente saber de quem são os produtos.</p>
+      <div class="grid" id="loja">
+        <div class="full"><label class="f">Nome da loja / marca <span class="req">*</span><input data-l="marca" autocomplete="organization"></label><span class="msg">Informe o nome da loja</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="s1">
+    <div class="row" style="justify-content:space-between;margin-bottom:14px">
+      <p class="hint" style="margin:0;max-width:46ch">Cadastre um produto por bloco. Se vários modelos são parecidos, use <b>Duplicar</b> e mude só o que for diferente.</p>
+      <button class="btn g" id="exemplo">Ver um exemplo preenchido</button>
+    </div>
+    <div id="prods"></div>
+    <button class="btn p" id="add" style="width:100%">+ Adicionar outro produto</button>
+  </section>
+
+  <section class="sec" id="s2">
+    <div class="card">
+      <h2>Tudo certo? Confira antes de enviar</h2>
+      <div class="row" style="margin-top:14px;gap:28px">
+        <div><div class="num" id="nP">0</div><span class="hint">produtos</span></div>
+        <div><div class="num" id="nV">0</div><span class="hint">variações (cor × tamanho)</span></div>
+        <div><div class="num" id="nE">0</div><span class="hint">fotos</span></div>
+      </div>
+      <div class="rev" id="rev"></div>
+      <div class="ok"><b>Como enviar:</b> toque em <b>Baixar planilha</b> e mande o arquivo pra gente (as fotos já vão dentro dele).</div>
+      <div class="row" style="margin-top:16px"><button class="btn a" id="dl">Baixar planilha</button><button class="btn g" id="novo">Começar um cadastro novo</button></div>
+      <p class="hint" id="out" aria-live="polite"></p>
+    </div>
+  </section>
+</div></main>
+
+<div class="bar"><div class="wrap">
+  <button class="btn g" id="back">Voltar</button>
+  <span id="saved"></span>
+  <button class="btn p" id="next">Continuar</button>
+</div></div>
+
+<script>
+{
+
+const TAMS = [["P","M","G","GG","XG"],["36","38","40","42","44","46","48"],["40","42","44","46","48","50"],["Único"]];
+const KEY = "kawlin-cadastro-v1";
+const $ = s => document.querySelector(s);
+const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const novo = () => ({id:Date.now()+Math.random(),nome:"",sku:"",desc:"",comp:"",fotos:[],cores:[],tams:[],est:{},med:{},custo:"",obs:""});
+let st = {loja:{marca:""},prods:[novo()]};
+try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.prods) { st = s; st.prods.forEach(p => { p.fotos ||= []; p.est ||= {}; }); } } catch(e) {}
+let step = 0, t;
+const idb = (() => { let p; const open = () => p ||= new Promise((ok, no) => { const r = indexedDB.open("kawlin-cadastro", 1); r.onupgradeneeded = () => r.result.createObjectStore("s"); r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error); });
+  const run = (mode, fn) => open().then(db => new Promise((ok, no) => { const tx = db.transaction("s", mode), q = fn(tx.objectStore("s")); tx.oncomplete = () => ok(q.result); tx.onerror = () => no(tx.error); }));
+  return { get: k => run("readonly", o => o.get(k)), set: (k, v) => run("readwrite", o => o.put(v, k)), del: k => run("readwrite", o => o.delete(k)) }; })();
+const aviso = msg => { $("#saved").textContent = msg; clearTimeout(t); t = setTimeout(()=>$("#saved").textContent="",2500); };
+async function gravar() {
+  try { await idb.set(KEY, JSON.parse(JSON.stringify(st))); try { localStorage.setItem(KEY, JSON.stringify({...st, prods: st.prods.map(p => ({...p, fotos: []}))})); } catch(e) {} aviso("Salvo ✓"); return; } catch(e) {}
+  try { localStorage.setItem(KEY, JSON.stringify(st)); aviso("Salvo ✓"); }
+  catch(e) { try { localStorage.setItem(KEY, JSON.stringify({...st, prods: st.prods.map(p => ({...p, fotos: []}))})); aviso("Salvo (sem as fotos)"); } catch(e2) { aviso("Não foi possível salvar neste navegador"); } }
+}
+let tSave; const save = () => { clearTimeout(tSave); tSave = setTimeout(gravar, 300); };
+const temDados = () => st.loja.marca || st.prods.some(p => p.nome || p.fotos.length || p.cores.length);
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") { clearTimeout(tSave); gravar(); } });
+window.addEventListener("beforeunload", e => { clearTimeout(tSave); gravar(); if (temDados() && !baixou) { e.preventDefault(); e.returnValue = ""; } });
+let baixou = false;
+const reduzir = file => new Promise((ok, no) => { const r = new FileReader(); r.onerror = no; r.onload = () => { const im = new Image(); im.onerror = no; im.onload = () => {
+  const k = Math.min(1, 900 / Math.max(im.width, im.height)), cv = document.createElement("canvas"); cv.width = Math.round(im.width*k); cv.height = Math.round(im.height*k);
+  cv.getContext("2d").drawImage(im, 0, 0, cv.width, cv.height); ok(cv.toDataURL("image/jpeg", 0.72)); }; im.src = r.result; }; r.readAsDataURL(file); });
+
+/* ---------- etapa 1 ---------- */
+const fillLoja = () => document.querySelectorAll("[data-l]").forEach(el => el.value = st.loja[el.dataset.l] || "");
+document.querySelectorAll("[data-l]").forEach(el => { el.addEventListener("input", () => { st.loja[el.dataset.l] = el.value; el.closest("div").classList.remove("err"); save(); }); });
+
+/* ---------- etapa 2 ---------- */
+const field = (k, label, extra="", opt="") => `<div data-w="${k}"><label class="f">${label}${opt?` <small>${opt}</small>`:` <span class="req">*</span>`}<input data-f="${k}" ${extra}></label><span class="msg">Campo obrigatório</span></div>`;
+const NIV = ["Bom","Médio","Ruim"], CL = {"Bom":"b","Médio":"m","Ruim":"r"};
+function grade(p) {
+  if (!p.cores.length || !p.tams.length) return `<p class="hint">Adicione as cores e marque os tamanhos acima que a tabela aparece aqui.</p>`;
+  return `<p class="hint">Toque em cada quadrinho para mudar: <b>Bom</b> → <b>Médio</b> → <b>Ruim</b>.</p>
+  <div class="row" style="margin-top:8px"><span class="hint" style="margin:0">Marcar tudo como:</span>${NIV.map(n=>`<button type="button" class="lv ${CL[n]}" data-fillv="${n}">${n}</button>`).join("")}</div>
+  <div class="scroll"><table><tr><th>Cor \\ Tam.</th>${p.tams.map(z=>`<th>${esc(z)}</th>`).join("")}</tr>
+  ${p.cores.map(c=>`<tr><td class="l">${esc(c)}</td>${p.tams.map(z=>{ const v = p.est[c+"|"+z] || ""; return `<td><button type="button" class="lv ${CL[v]||""}" data-e="${esc(c+"|"+z)}" aria-label="Estoque ${esc(c)} ${esc(z)}">${esc(v||"—")}</button></td>`; }).join("")}</tr>`).join("")}</table></div>`;
+}
+function medidas(p) {
+  if (!p.tams.length) return `<p class="hint">Marque os tamanhos para preencher as medidas.</p>`;
+  return `<div class="scroll"><table><tr><th>Tamanho</th><th>Busto (cm)</th><th>Cintura (cm)</th><th>Quadril (cm)</th></tr>
+  ${p.tams.map(z=>`<tr><td class="l">${esc(z)}</td>${["busto","cintura","quadril"].map(m=>`<td><input inputmode="decimal" data-m2="${esc(z+"|"+m)}" value="${esc((p.med[z]||{})[m])}" placeholder="–"></td>`).join("")}</tr>`).join("")}</table></div>`;
+}
+function card(p, i) {
+  const allT = [...new Set([...TAMS.flat(), ...p.tams])];
+  return `<div class="card prod" data-i="${i}">
+  <div class="ptitle"><h2><span class="pnum">${i+1}</span>${esc(p.nome) || "Novo produto"}</h2>
+    <div class="row"><button type="button" class="btn g" data-act="dup">Duplicar</button>${st.prods.length>1?`<button type="button" class="btn g" data-act="del">Remover</button>`:""}</div></div>
+  <div class="grid">
+    <div class="full" data-w="nome"><label class="f">Nome do produto <span class="req">*</span><input data-f="nome" placeholder="Ex.: Conjunto de renda com bojo Bella"></label><span class="msg">Dê um nome ao produto</span></div>
+    <div class="full" data-w="fotos"><span class="f" style="font-weight:600">Foto da peça <span class="req">*</span></span>
+      <p class="hint">Só pra gente identificar qual é o produto — pode ser foto simples, de celular. As fotos dos anúncios são feitas por nós.</p>
+      <div class="thumbs">${p.fotos.map((f,k)=>`<span class="th"><img src="${esc(f)}" alt="Foto ${k+1}"><button type="button" data-rf="${k}" aria-label="Remover foto">×</button></span>`).join("")}</div>
+      ${p.fotos.length < 4 ? `<div class="row" style="margin-top:8px"><label class="btn p up">Tirar foto<input type="file" accept="image/*" capture="environment" data-foto hidden></label><label class="btn up">Escolher da galeria<input type="file" accept="image/*" multiple data-foto hidden></label></div>` : `<p class="hint">Limite de 4 fotos por produto.</p>`}
+      <span class="msg">Adicione pelo menos uma foto da peça</span></div>
+    <div class="full">${field("sku","Código / referência",'placeholder="Ex.: CJ-BELLA"',"(se tiver)")}</div>
+    <div class="full"><label class="f">Tecido / composição <small>(está na etiqueta)</small><input data-f="comp" placeholder="Ex.: 90% poliamida, 10% elastano"></label></div>
+    <div class="full"><label class="f">Descrição / diferenciais <small>(com suas palavras)</small><textarea data-f="desc" placeholder="O que essa peça tem de especial? Ex.: renda macia que não pinica, bojo leve que levanta sem marcar…"></textarea></label></div>
+  </div>
+  <div class="sub"><h3>Cores e tamanhos</h3>
+    <div class="grid">
+      <div class="full" data-w="cores"><label class="f">Cores disponíveis <span class="req">*</span></label>
+        <div class="tags">${p.cores.map((c,k)=>`<span class="tag">${esc(c)}<button type="button" data-rc="${k}" aria-label="Remover ${esc(c)}">×</button></span>`).join("")}<input data-newcor placeholder="Digite a cor e aperte Enter"></div>
+        <span class="msg">Adicione pelo menos uma cor</span><p class="hint">Digite uma cor e aperte Enter (ou vírgula) para adicionar a próxima.</p></div>
+      <div class="full" data-w="tams"><span class="f" style="font-weight:600">Tamanhos <span class="req">*</span></span>
+        <div class="chips">${allT.map(z=>`<button type="button" class="chip ${p.tams.includes(z)?"on":""}" data-t="${esc(z)}">${esc(z)}</button>`).join("")}</div>
+        <div class="row" style="margin-top:8px"><input data-newtam style="width:160px;margin:0" placeholder="Outro tamanho"><button type="button" class="btn g" data-act="tam">Adicionar</button></div>
+        <span class="msg">Marque pelo menos um tamanho</span></div>
+    </div>
+    <h3 style="margin-top:18px">Como está o estoque? <small class="hint">(opcional)</small></h3><div data-grade>${grade(p)}</div>
+    <h3 style="margin-top:18px">Tabela de medidas <small class="hint">(opcional, mas reduz muito as devoluções)</small></h3><div data-med>${medidas(p)}</div>
+  </div>
+  <div class="sub"><h3>Custo</h3>
+    <div class="grid">
+      ${field("custo","Custo da peça (R$)",'inputmode="decimal" placeholder="Ex.: 28,00"')}
+      <div class="full"><label class="f">Alguma observação? <small>(opcional)</small><textarea data-f="obs" placeholder="Ex.: a cor vinho chega só mês que vem"></textarea></label></div>
+    </div>
+  </div></div>`;
+}
+const drawProds = () => { $("#prods").innerHTML = st.prods.map(card).join(""); document.querySelectorAll(".prod").forEach(el => { const p = st.prods[+el.dataset.i]; el.querySelectorAll("[data-f]").forEach(f => { if (f.tagName !== "SELECT") f.value = p[f.dataset.f] || ""; }); }); };
+const P = el => { const c = el.closest(".prod"); return c ? [st.prods[+c.dataset.i], c, +c.dataset.i] : []; };
+const redrawOne = i => { const el = document.querySelector(`.prod[data-i="${i}"]`); const tmp = document.createElement("div"); tmp.innerHTML = card(st.prods[i], i); const n = tmp.firstElementChild; el.replaceWith(n); n.querySelectorAll("[data-f]").forEach(f => { if (f.tagName!=="SELECT") f.value = st.prods[i][f.dataset.f] || ""; }); return n; };
+const addCor = (p, i, v, foco = true) => { v.split(",").map(s=>s.trim()).filter(Boolean).forEach(c => { if (!p.cores.includes(c)) p.cores.push(c); }); save(); const n = redrawOne(i); if (foco) n.querySelector("[data-newcor]").focus(); };
+
+$("#prods").addEventListener("input", e => {
+  const [p, c, i] = P(e.target); if (!p) return; const el = e.target, d = el.dataset;
+  if (d.f) { p[d.f] = el.value; el.closest("[data-w]")?.classList.remove("err"); if (d.f === "nome") c.querySelector("h2").lastChild.textContent = el.value || "Novo produto"; }
+  else if (d.m2) { const [z,m] = d.m2.split("|"); (p.med[z] ||= {})[m] = el.value; }
+  else return; save();
+});
+$("#prods").addEventListener("change", async e => {
+  if (e.target.matches("[data-foto]")) { const [p,,i] = P(e.target); for (const f of [...e.target.files].slice(0, 4 - p.fotos.length)) { try { p.fotos.push(await reduzir(f)); } catch(err) {} } redrawOne(i); save(); return; }
+});
+$("#prods").addEventListener("keydown", e => {
+  if (e.target.matches("[data-newcor]") && (e.key === "Enter" || e.key === ",")) { e.preventDefault(); const [p,,i] = P(e.target); if (e.target.value.trim()) addCor(p, i, e.target.value); }
+  if (e.target.matches("[data-newtam]") && e.key === "Enter") { e.preventDefault(); e.target.closest(".row").querySelector("[data-act=tam]").click(); }
+});
+$("#prods").addEventListener("focusout", e => { if (e.target.matches("[data-newcor]") && e.target.value.trim()) { const [p,,i] = P(e.target); const v = e.target.value; setTimeout(()=>addCor(p, i, v, false), 0); } });
+$("#prods").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return; const [p, c, i] = P(b); if (!p) return; const d = b.dataset;
+  if (d.e) { const v = p.est[d.e] || "", n = NIV[(NIV.indexOf(v)+1) % NIV.length]; p.est[d.e] = n; b.textContent = n; b.className = "lv " + CL[n]; }
+  else if (d.fillv) { p.cores.forEach(co=>p.tams.forEach(z=>p.est[co+"|"+z]=d.fillv)); c.querySelector("[data-grade]").innerHTML = grade(p); }
+  else if (d.t) { p.tams.includes(d.t) ? p.tams.splice(p.tams.indexOf(d.t),1) : p.tams.push(d.t); const ord = [...new Set([...TAMS.flat()])]; p.tams.sort((x,y)=>(ord.indexOf(x)+1||99)-(ord.indexOf(y)+1||99)); redrawOne(i); }
+  else if (d.rf !== undefined) { p.fotos.splice(+d.rf,1); redrawOne(i); }
+  else if (d.rc !== undefined) { p.cores.splice(+d.rc,1); redrawOne(i); }
+  else if (d.act === "tam") { const v = c.querySelector("[data-newtam]").value.trim(); if (v && !p.tams.includes(v)) { p.tams.push(v); redrawOne(i); } }
+  else if (d.act === "dup") { const n = JSON.parse(JSON.stringify(p)); n.id = Date.now(); n.nome = p.nome ? p.nome + " (cópia)" : ""; n.sku = ""; n.fotos = []; st.prods.splice(i+1,0,n); drawProds(); document.querySelector(`.prod[data-i="${i+1}"]`).scrollIntoView({behavior:"smooth"}); }
+  else if (d.act === "del") { if (b.dataset.sure) { st.prods.splice(i,1); drawProds(); } else { b.dataset.sure = 1; b.textContent = "Toque de novo p/ remover"; setTimeout(()=>{ if (b.isConnected) { delete b.dataset.sure; b.textContent = "Remover"; } }, 3000); return; } }
+  else return; save();
+});
+$("#add").onclick = () => { st.prods.push(novo()); drawProds(); save(); document.querySelector(`.prod[data-i="${st.prods.length-1}"]`).scrollIntoView({behavior:"smooth"}); };
+$("#exemplo").onclick = () => {
+  const ex = Object.assign(novo(), {nome:"EXEMPLO – Conjunto de renda com bojo Bella",sku:"CJ-BELLA",comp:"90% poliamida, 10% elastano",desc:"Renda macia que não pinica, bojo leve que levanta sem marcar na roupa. Calcinha com cós de renda.",cores:["Preto","Nude","Vinho"],tams:["P","M","G","GG"],est:{"Preto|P":"Bom","Preto|M":"Bom","Preto|G":"Médio","Preto|GG":"Ruim","Nude|P":"Médio","Nude|M":"Bom","Nude|G":"Bom","Nude|GG":"Médio","Vinho|P":"Ruim","Vinho|M":"Médio","Vinho|G":"Ruim","Vinho|GG":"Ruim"},custo:"28,00",obs:"Este é só um exemplo — pode remover."});
+
+  ex.med = {P:{busto:"84-88",cintura:"64-68",quadril:"90-94"},M:{busto:"89-93",cintura:"69-73",quadril:"95-99"},G:{busto:"94-98",cintura:"74-78",quadril:"100-104"},GG:{busto:"99-103",cintura:"79-83",quadril:"105-109"}};
+  st.prods.push(ex); drawProds(); save(); document.querySelector(`.prod[data-i="${st.prods.length-1}"]`).scrollIntoView({behavior:"smooth"});
+};
+
+/* ---------- validação e navegação ---------- */
+function validar(s) {
+  const falta = [];
+  if (s === 0) document.querySelectorAll("#loja [data-l]").forEach(el => { if (!el.value.trim()) { el.closest("div").classList.add("err"); falta.push(el.closest("label").firstChild.textContent.trim()); } });
+  if (s === 1) document.querySelectorAll(".prod").forEach(el => { const p = st.prods[+el.dataset.i], n = +el.dataset.i + 1; const chk = (w, ok) => { if (!ok) { el.querySelector(`[data-w="${w}"]`).classList.add("err"); falta.push(w); } };
+    chk("fotos", p.fotos.length); chk("nome", p.nome.trim()); chk("cores", p.cores.length); chk("tams", p.tams.length); chk("custo", String(p.custo).trim()); });
+  const a = $("#alert");
+  if (falta.length) { a.style.display = "block"; a.textContent = s === 0 ? "Faltam alguns dados da loja (marcados em vermelho)." : "Alguns campos obrigatórios estão faltando nos produtos — eles estão marcados em vermelho."; document.querySelector(".err")?.scrollIntoView({behavior:"smooth",block:"center"}); return false; }
+  a.style.display = "none"; return true;
+}
+function go(s) {
+  if (s > step) for (let k = step; k < s; k++) if (!validar(k)) { show(k); return; }
+  show(s);
+}
+function show(s) {
+  step = s; document.querySelectorAll(".sec").forEach((el,k)=>el.classList.toggle("on", k===s));
+  document.querySelectorAll("#steps button").forEach((b,k)=>b.classList.toggle("on", k===s));
+  $("#back").style.visibility = s ? "visible" : "hidden"; $("#next").style.visibility = s < 2 ? "visible" : "hidden";
+  if (s === 2) revisar(); window.scrollTo({top:0});
+}
+$("#steps").onclick = e => { const b = e.target.closest("button"); if (b) go(+b.dataset.s); };
+$("#next").onclick = () => go(step + 1); $("#back").onclick = () => show(step - 1);
+
+/* ---------- revisão, planilha e envio ---------- */
+const linhas = () => st.prods.flatMap(p => p.cores.flatMap(c => p.tams.map(z => ({p, c, z}))));
+const skuVar = (p,c,z) => [p.sku || p.nome.slice(0,12), c, z].join("-").toUpperCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^A-Z0-9-]+/g,"");
+function revisar() {
+  const ls = linhas();
+  $("#nP").textContent = st.prods.length; $("#nV").textContent = ls.length;
+  $("#nE").textContent = st.prods.reduce((s,p)=>s+p.fotos.length,0);
+  $("#rev").innerHTML = `<p style="margin-top:16px"><b>${esc(st.loja.marca)}</b></p>` + st.prods.map((p,i)=>{
+    const semEst = p.cores.length*p.tams.length - p.cores.filter(c=>1).reduce((s,c)=>s+p.tams.filter(z=>p.est[c+"|"+z]).length,0);
+    const semMed = p.tams.filter(z=>!Object.values(p.med[z]||{}).some(v=>String(v).trim()));
+    return `<div class="pr">${p.fotos[0]?`<img class="mini" src="${esc(p.fotos[0])}" alt="">`:""}<p><b>${i+1}. ${esc(p.nome)}</b>${p.sku?` · ${esc(p.sku)}`:""} · custo R$ ${esc(p.custo)}</p><p class="hint">${esc(p.cores.join(", "))} — ${esc(p.tams.join(", "))}</p>${semMed.length?`<p class="hint" style="color:var(--acc)">Sem medidas: ${esc(semMed.join(", "))}</p>`:""}${semEst?`<p class="hint" style="color:var(--acc)">${semEst} variação(ões) sem estoque marcado</p>`:""}</div>`; }).join("");
+
+
+}
+const COLS = [["Produto",34],["Código",14],["SKU variação",24],["Cor",14],["Tamanho",10],["Estoque",10],["Busto (cm)",11],["Cintura (cm)",12],["Quadril (cm)",12],["Custo",10],["Composição",26],["Descrição / diferenciais",44],["Observações",30]];
+const varRow = ({p,c,z}) => { const m = p.med[z] || {}; return [p.nome,p.sku,skuVar(p,c,z),c,z,p.est[c+"|"+z]||"",m.busto,m.cintura,m.quadril,p.custo,p.comp,p.desc,p.obs]; };
+function csv() { const q = v => `"${String(v ?? "").replace(/"/g,'""')}"`; return "﻿" + [COLS.map(c=>c[0]), ...linhas().map(varRow)].map(r => r.map(q).join(";")).join("\r\n"); }
+async function xlsx() {
+  const L = st.loja, wb = new ExcelJS.Workbook(), roxo = "FF381394";
+  const head = ws => { const r = ws.getRow(1); r.font = {bold:true,color:{argb:"FFFFFFFF"}}; r.fill = {type:"pattern",pattern:"solid",fgColor:{argb:roxo}}; r.height = 22; ws.views = [{state:"frozen",ySplit:1}]; };
+  const nF = Math.max(1, ...st.prods.map(p=>p.fotos.length));
+  const ws = wb.addWorksheet("Produtos");
+  ws.columns = [...Array.from({length:nF},(_,k)=>({header:`Foto ${k+1}`,width:18})), {header:"Produto",width:34},{header:"Código",width:14},{header:"Cores",width:26},{header:"Tamanhos",width:20},{header:"Custo",width:10},{header:"Composição",width:26},{header:"Descrição / diferenciais",width:44},{header:"Tabela de medidas (busto / cintura / quadril)",width:36},{header:"Observações",width:30}];
+  head(ws);
+  st.prods.forEach((p, i) => {
+    const med = p.tams.map(z=>{ const m = p.med[z]||{}; return `${z}: ${m.busto||"–"} / ${m.cintura||"–"} / ${m.quadril||"–"}`; }).join("\n");
+    const r = ws.addRow([...Array(nF).fill(""), p.nome,p.sku,p.cores.join(", "),p.tams.join(", "),p.custo,p.comp,p.desc,med,p.obs]);
+    r.height = 100; r.alignment = {vertical:"middle",wrapText:true};
+    p.fotos.forEach((f, k) => { const id = wb.addImage({base64:f, extension:"jpeg"}); ws.addImage(id, {tl:{col:k+0.05,row:i+1+0.05}, ext:{width:120,height:126}}); });
+  });
+  const wv = wb.addWorksheet("Variações");
+  wv.columns = COLS.map(([h,w])=>({header:h,width:w})); head(wv);
+  linhas().forEach(l => wv.addRow(varRow(l)));
+  const wl = wb.addWorksheet("Loja");
+  [["Loja",L.marca],["Preenchido em",new Date().toLocaleString("pt-BR")]].forEach(r=>wl.addRow(r));
+  wl.getColumn(1).font = {bold:true}; wl.getColumn(1).width = 16; wl.getColumn(2).width = 40;
+  return new Blob([await wb.xlsx.writeBuffer()]);
+}
+const nomeArq = ext => `cadastro-${(st.loja.marca||"loja").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9]+/g,"-")}.${ext}`;
+async function baixar(name, data) {
+  const dls = window.claude ? await Promise.race([window.claude.use("downloads"), new Promise(r=>setTimeout(()=>r(null),3000))]).catch(()=>null) : null;
+  if (dls) { await dls.save({filename:name, data}); return; }
+  const a = document.createElement("a"); a.href = URL.createObjectURL(data instanceof Blob ? data : new Blob([data],{type:"text/csv;charset=utf-8"})); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+}
+$("#dl").onclick = async () => {
+  const out = $("#out"), b = $("#dl"); b.disabled = true; out.textContent = "Gerando a planilha com as fotos…";
+  try {
+    if (window.ExcelJS) { await baixar(nomeArq("xlsx"), await xlsx()); baixou = true; out.textContent = "Planilha baixada (com as fotos). Agora é só mandar o arquivo pra gente."; }
+    else { await baixar(nomeArq("csv"), csv()); out.textContent = "Planilha baixada, mas sem as fotos (sem internet para gerar o Excel). Mande as fotos junto com o arquivo."; }
+  } catch(e) { out.textContent = e && e.code === "declined" ? "Download cancelado." : "Não consegui baixar aqui — tente em outro navegador."; }
+  b.disabled = false;
+};
+
+
+const zerar = async () => { st = {loja:{marca:""},prods:[novo()]}; baixou = false; try { await idb.del(KEY); } catch(e) {} try { localStorage.removeItem(KEY); } catch(e) {} fillLoja(); drawProds(); $("#rec").style.display = "none"; show(0); };
+const confirma = (b, txt, fn) => { if (b.dataset.sure) { fn(); return; } const o = b.textContent; b.dataset.sure = 1; b.textContent = txt; setTimeout(()=>{ delete b.dataset.sure; b.textContent = o; }, 3000); };
+$("#zero").onclick = e => confirma(e.target, "Toque de novo para apagar tudo", zerar);
+$("#novo").onclick = e => confirma(e.target, "Toque de novo: apaga este cadastro", zerar);
+fillLoja(); drawProds(); show(0);
+if (temDados()) $("#rec").style.display = "block";
+idb.get(KEY).then(s => { if (s && s.prods) { st = s; st.prods.forEach(p => { p.fotos ||= []; p.est ||= {}; }); fillLoja(); drawProds(); if (temDados()) $("#rec").style.display = "block"; } }).catch(()=>{});
+}
+</script>
+</body>
+</html>
